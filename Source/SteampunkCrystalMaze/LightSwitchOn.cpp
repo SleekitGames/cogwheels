@@ -5,6 +5,9 @@
 #include "Engine/World.h"
 #include "Gameframework/Pawn.h"
 #include "Gameframework/PlayerController.h"
+#include "Components/PrimitiveComponent.h"
+
+#define OUT
 
 // Sets default values for this component's properties
 ULightSwitchOn::ULightSwitchOn()
@@ -21,30 +24,41 @@ ULightSwitchOn::ULightSwitchOn()
 void ULightSwitchOn::BeginPlay()
 {
 	Super::BeginPlay();
+	Owner = GetOwner();
 
-	ActorThatOpens = GetWorld()->GetFirstPlayerController()->GetPawn();
-	
+	if (!PressurePlate) {
+		UE_LOG(LogTemp, Error, TEXT("%s Missing Pressure Plate"), *GetOwner()->GetName())
+	}
 }
-
-void ULightSwitchOn::LightSwitchOn()
-{
-	AActor* Owner = GetOwner();
-	FRotator NewRotation = FRotator(0.0f, -180.0f, 0.0f);
-	Owner->SetActorRotation(NewRotation);
-	UE_LOG(LogTemp, Warning, TEXT("pressure plate triggered"));
-}
-
 
 // Called every frame
 void ULightSwitchOn::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// ...
-	if (PressurePlate->IsOverlappingActor(ActorThatOpens))// if the actor that opens is in the volume
+
+	// Poll the trigger volume
+	if (GetTotalMassOfActorsOnPlate() > TriggerMass)
 	{
-		LightSwitchOn();
+		OnPress.Broadcast();
 	}
+	else { OnRelease.Broadcast(); }
 
 }
 
+float ULightSwitchOn::GetTotalMassOfActorsOnPlate()
+{
+	float TotalMass = 0.f;
+	//find all overlapping actors
+	TArray<AActor*> OverlappingActors;
+	if (!PressurePlate) { return TotalMass; }
+	PressurePlate->GetOverlappingActors(OUT OverlappingActors);
+	//iterate through them, adding their masses
+	for (const auto* Actor : OverlappingActors)
+	{
+		TotalMass += Actor->FindComponentByClass<UPrimitiveComponent>()->GetMass();
+		UE_LOG(LogTemp, Warning, TEXT("%s on plate"), *Actor->GetName())
+	}
+
+	return TotalMass;
+}
